@@ -1,0 +1,196 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Windows.Input;
+
+using Ensage;
+using Ensage.Common;
+using Ensage.Common.Extensions;
+using SharpDX;
+using SharpDX.Direct3D9;
+
+namespace understandcreep
+{
+    class Program
+    {
+        private static Hero me;
+        
+        //private static List<Hero> enemHeroes = new List<Hero>();
+        private static bool toggle = true;
+        private static Key toggleKey = Key.J;
+        private static Font _text;
+
+
+        private static readonly uint[] BoarDamage = { 15, 30, 45, 60 };
+
+
+
+    
+
+
+        static void Main(string[] args)
+        {
+
+            Game.OnUpdate += Game_OnUpdate;
+            Game.OnWndProc += Game_OnWndProc;
+            Console.WriteLine("> Beastmasterday# loaded!");
+
+            _text = new Font(
+               Drawing.Direct3DDevice9,
+               new FontDescription
+               {
+                   FaceName = "Segoe UI",
+                   Height = 14,
+                   OutputPrecision = FontPrecision.Default,
+                   Quality = FontQuality.ClearType
+               });
+            Drawing.OnPreReset += Drawing_OnPreReset;
+            Drawing.OnPostReset += Drawing_OnPostReset;
+            Drawing.OnEndScene += Drawing_OnEndScene;
+            AppDomain.CurrentDomain.DomainUnload += CurrentDomain_DomainUnload;
+        }
+
+
+        public static void Game_OnUpdate(EventArgs args)
+        {
+            me = ObjectMgr.LocalHero;
+
+            if (me == null || !Game.IsInGame || Game.IsWatchingGame)
+                return;
+
+            if (me.ClassID != ClassID.CDOTA_Unit_Hero_Beastmaster)
+                return;
+
+            var boar = ObjectMgr.GetEntities<Unit>().FirstOrDefault(v => v.ClassID == ClassID.CDOTA_Unit_Hero_Beastmaster_Boar && v.IsControllableByPlayer(ObjectMgr.LocalPlayer));
+            var creeps = ObjectMgr.GetEntities<Creep>().Where(creep => (creep.ClassID == ClassID.CDOTA_BaseNPC_Creep_Lane || creep.ClassID == ClassID.CDOTA_BaseNPC_Creep_Siege) && creep.IsAlive && creep.IsVisible && creep.IsSpawned).ToList();
+            var enemies = ObjectMgr.GetEntities<Hero>().Where(hero => hero.IsAlive && !hero.IsIllusion && hero.IsVisible && hero.Team == me.GetEnemyTeam()).ToList();
+            var boarLevel = me.Spellbook.SpellE.Level - 1;
+            var distance = me.Distance2D(boar);
+
+           // var boarInstance = boar as IList<Hero>;   I HAVE NO FUCKING CLUE
+           // var myHero = me as IList<Hero>;           WHAT AM I GOING TO DO WITH MY LIFE
+
+  
+            
+
+//            if (me.Distance2D(enemHeroes) < 500)
+//            {
+//                boar.Follow(me);
+//                Utils.Sleep(1000, boar.Handle.ToString());
+//            }                    
+
+
+     
+            
+
+            
+            // Boar follows me, how nice <3
+
+            if (distance > 500 && distance < 1000 && Utils.SleepCheck(boar.Handle.ToString()))
+            {
+                boar.Follow(me);
+                Utils.Sleep(1000, boar.Handle.ToString());
+            }
+
+
+
+            // Boar applies debuff on enemypotatos
+
+            foreach (var enemy in enemies)
+            {
+                if (enemy.Modifiers.FirstOrDefault(modifier => modifier.Name == "modifier_beastmaster_boar_poison_effect") == null && enemy.Health > 0)
+
+                    {
+                        if (GetDistance2D(enemy.Position, boar.Position) < boar.AttackRange && Utils.SleepCheck(boar.Handle.ToString()))
+                        {
+                            boar.Attack(enemy);
+                            Utils.Sleep(1000, boar.Handle.ToString());
+                        }
+                        
+                }
+            }
+
+            // boar attacks my own and enemy creep woho!
+
+
+            foreach (var creep in creeps)
+            {
+                if (creep.Team == me.GetEnemyTeam() && creep.Health > 0 && creep.Health < (BoarDamage[boarLevel] * (1 - creep.DamageResist) + 20))
+                {
+                    if (GetDistance2D(creep.Position, boar.Position) < boar.AttackRange && Utils.SleepCheck(boar.Handle.ToString()))          // me. or boar.?
+                    {
+
+
+                        boar.Attack(creep);
+                        Utils.Sleep(1000, boar.Handle.ToString());
+
+                    }
+                }
+                else if (creep.Team == me.Team && creep.Health > (BoarDamage[boarLevel] * (1 - creep.DamageResist)) && creep.Health < (BoarDamage[boarLevel] * (1 - creep.DamageResist) + 88))
+                {
+                    if (GetDistance2D(creep.Position, boar.Position) < boar.AttackRange && Utils.SleepCheck(boar.Handle.ToString()))
+                    {
+
+
+                        boar.Attack(creep);
+                        Utils.Sleep(1000, boar.Handle.ToString());
+
+                    }
+
+
+                }
+        
+            }
+        }
+             
+                 private static float GetDistance2D(Vector3 p1, Vector3 p2)
+        {
+            return (float)Math.Sqrt(Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2));
+        }
+
+
+
+        private static void Game_OnWndProc(WndEventArgs args)
+        {
+            if (!Game.IsChatOpen)
+            {
+
+                if (Game.IsKeyDown(toggleKey) && Utils.SleepCheck("toggle"))
+                {
+                    toggle = !toggle;
+                    Utils.Sleep(300, "toggle");
+                }
+            }
+        }
+
+        static void CurrentDomain_DomainUnload(object sender, EventArgs e)
+        {
+            _text.Dispose();
+        }
+
+        static void Drawing_OnEndScene(EventArgs args)
+        {
+            if (Drawing.Direct3DDevice9 == null || Drawing.Direct3DDevice9.IsDisposed || !Game.IsInGame)
+                return;
+
+            var player = ObjectMgr.LocalPlayer;
+            var me = ObjectMgr.LocalHero;
+            if (player == null || player.Team == Team.Observer || me.ClassID != ClassID.CDOTA_Unit_Hero_Beastmaster)
+                return;
+
+            if (!toggle)
+            {
+                _text.DrawText(null, "Beastmasterday#: Disabled | [" + toggleKey + "] for toggle", 4, 400, Color.LightGray);
+            }
+        }
+        static void Drawing_OnPostReset(EventArgs args)
+        {
+            _text.OnResetDevice();
+        }
+
+        static void Drawing_OnPreReset(EventArgs args)
+        {
+            _text.OnLostDevice();
+        }
+    }
